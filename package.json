@@ -17,7 +17,8 @@
     "generate-manifest": "bun scripts/generate-audio-manifest.ts",
     "generate-embeddings": "bun scripts/generate-embeddings.ts",
     "create-hnsw-index": "bun scripts/create-hnsw-index.ts",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test": "bun test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",

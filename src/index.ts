@@ -94,6 +94,8 @@ app.get("/docs", swaggerUI({ url: "/openapi.json" }));
 
 const port = Number(process.env.PORT) || 3000;
 
+export { app };
+
 export default {
 	port,
 	fetch: app.fetch,
