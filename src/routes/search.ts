@@ -1,0 +1,253 @@
+import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { and, eq, sql } from "drizzle-orm";
+import OpenAI from "openai";
+import { closeDb, getDb } from "../db/client.ts";
+import { paragraphs } from "../db/schema.ts";
+import {
+	ErrorResponse,
+	SearchRequest,
+	SearchResponse,
+	SemanticSearchRequest,
+	SemanticSearchResponse,
+} from "../validators/schemas.ts";
+
+export const searchRoute = new OpenAPIHono();
+
+/**
+ * Build a tsquery string from the search input based on the search type.
+ */
+function buildTsQuery(sanitized: string, type: "phrase" | "and" | "or"): string {
+	switch (type) {
+		case "phrase":
+			return `phraseto_tsquery('english', '${sanitized}')`;
+		case "and": {
+			const words = sanitized.split(/\s+/).filter(Boolean);
+			return `to_tsquery('english', '${words.join(" & ")}')`;
+		}
+		case "or": {
+			const words = sanitized.split(/\s+/).filter(Boolean);
+			return `to_tsquery('english', '${words.join(" | ")}')`;
+		}
+	}
+}
+
+const searchParagraphsRoute = createRoute({
+	operationId: "search",
+	method: "post",
+	path: "/",
+	tags: ["Search"],
+	summary: "Full-text search across all paragraphs",
+	description: `Search the Urantia Papers using full-text search. Supports three search modes:
+- **and**: All words must appear (default)
+- **or**: Any word can appear
+- **phrase**: Exact phrase match
+
+Results are ranked by relevance. Optional filters: paperId, partId.`,
+	request: {
+		body: {
+			content: { "application/json": { schema: SearchRequest } },
+		},
+	},
+	responses: {
+		200: {
+			description: "Search results with pagination",
+			content: { "application/json": { schema: SearchResponse } },
+		},
+		400: {
+			description: "Invalid search query",
+			content: { "application/json": { schema: ErrorResponse } },
+		},
+		500: {
+			description: "Internal server error",
+			content: { "application/json": { schema: ErrorResponse } },
+		},
+	},
+});
+
+searchRoute.openapi(searchParagraphsRoute, async (c) => {
+	const { db, close } = getDb();
+	const body = c.req.valid("json");
+	const { q, page, limit, paperId, partId, type } = body;
+
+	const sanitized = q.replace(/[^\w\s]/g, " ").trim();
+
+	if (!sanitized) {
+		closeDb(c, close);
+		return c.json({ error: "Search query cannot be empty" }, 400);
+	}
+
+	const tsQuery = buildTsQuery(sanitized, type);
+	const offset = page * limit;
+
+	// Build WHERE conditions
+	const conditions = [sql`search_vector @@ ${sql.raw(tsQuery)}`];
+
+	if (paperId) {
+		conditions.push(eq(paragraphs.paperId, paperId));
+	}
+	if (partId) {
+		conditions.push(eq(paragraphs.partId, partId));
+	}
+
+	const whereClause = and(...conditions);
+
+	// Count total matches
+	const countResult = await db
+		.select({ count: sql<number>`count(*)` })
+		.from(paragraphs)
+		.where(whereClause);
+
+	const total = Number(countResult[0]?.count ?? 0);
+
+	// Fetch results with rank
+	const results = await db
+		.select({
+			id: paragraphs.id,
+			standardReferenceId: paragraphs.standardReferenceId,
+			sortId: paragraphs.sortId,
+			paperId: paragraphs.paperId,
+			sectionId: sql<
+				string | null
+			>`CASE WHEN ${paragraphs.sectionId} IS NOT NULL THEN split_part(${paragraphs.sectionId}, '.', 2) ELSE NULL END`.as(
+				"sectionId",
+			),
+			partId: paragraphs.partId,
+			paperTitle: paragraphs.paperTitle,
+			sectionTitle: paragraphs.sectionTitle,
+			paragraphId: paragraphs.paragraphId,
+			text: paragraphs.text,
+			htmlText: paragraphs.htmlText,
+			labels: paragraphs.labels,
+			audio: paragraphs.audio,
+			rank: sql<number>`ts_rank(search_vector, ${sql.raw(tsQuery)})`,
+		})
+		.from(paragraphs)
+		.where(whereClause)
+		.orderBy(sql`ts_rank(search_vector, ${sql.raw(tsQuery)}) DESC`)
+		.limit(limit)
+		.offset(offset);
+
+	closeDb(c, close);
+	return c.json(
+		{
+			data: results,
+			meta: {
+				page,
+				limit,
+				total,
+				totalPages: Math.ceil(total / limit),
+			},
+		},
+		200,
+	);
+});
+
+// ── Semantic Search ──
+
+const semanticSearchRoute = createRoute({
+	operationId: "semanticSearch",
+	method: "post",
+	path: "/semantic",
+	tags: ["Search"],
+	summary: "Semantic similarity search across all paragraphs",
+	description: `Search the Urantia Papers using semantic similarity (vector embeddings).
+Returns conceptually related results even without exact keyword matches.
+Optional filters: paperId, partId.`,
+	request: {
+		body: {
+			content: { "application/json": { schema: SemanticSearchRequest } },
+		},
+	},
+	responses: {
+		200: {
+			description: "Semantic search results with pagination",
+			content: { "application/json": { schema: SemanticSearchResponse } },
+		},
+		400: {
+			description: "Invalid search query",
+			content: { "application/json": { schema: ErrorResponse } },
+		},
+		500: {
+			description: "Internal server error",
+			content: { "application/json": { schema: ErrorResponse } },
+		},
+	},
+});
+
+searchRoute.openapi(semanticSearchRoute, async (c) => {
+	const { db, close } = getDb();
+	const { q, page, limit, paperId, partId } = c.req.valid("json");
+	const offset = page * limit;
+
+	const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+	const embeddingResponse = await openai.embeddings.create({
+		model: "text-embedding-3-small",
+		input: q,
+	});
+	const queryVector = embeddingResponse.data[0]?.embedding;
+	if (!queryVector) {
+		await close();
+		return c.json({ error: "Failed to generate embedding" }, 500);
+	}
+	const vectorStr = `[${queryVector.join(",")}]`;
+
+	// Build WHERE conditions
+	const conditions = [sql`embedding IS NOT NULL`];
+	if (paperId) {
+		conditions.push(eq(paragraphs.paperId, paperId));
+	}
+	if (partId) {
+		conditions.push(eq(paragraphs.partId, partId));
+	}
+	const whereClause = and(...conditions);
+
+	// Count total matching paragraphs
+	const countResult = await db
+		.select({ count: sql<number>`count(*)` })
+		.from(paragraphs)
+		.where(whereClause);
+
+	const total = Number(countResult[0]?.count ?? 0);
+
+	// Fetch results ordered by cosine similarity
+	const results = await db
+		.select({
+			id: paragraphs.id,
+			standardReferenceId: paragraphs.standardReferenceId,
+			sortId: paragraphs.sortId,
+			paperId: paragraphs.paperId,
+			sectionId: sql<
+				string | null
+			>`CASE WHEN ${paragraphs.sectionId} IS NOT NULL THEN split_part(${paragraphs.sectionId}, '.', 2) ELSE NULL END`.as(
+				"sectionId",
+			),
+			partId: paragraphs.partId,
+			paperTitle: paragraphs.paperTitle,
+			sectionTitle: paragraphs.sectionTitle,
+			paragraphId: paragraphs.paragraphId,
+			text: paragraphs.text,
+			htmlText: paragraphs.htmlText,
+			labels: paragraphs.labels,
+			audio: paragraphs.audio,
+			similarity: sql<number>`1 - (embedding <=> ${vectorStr}::vector)`,
+		})
+		.from(paragraphs)
+		.where(whereClause)
+		.orderBy(sql`embedding <=> ${vectorStr}::vector`)
+		.limit(limit)
+		.offset(offset);
+
+	closeDb(c, close);
+	return c.json(
+		{
+			data: results,
+			meta: {
+				page,
+				limit,
+				total,
+				totalPages: Math.ceil(total / limit),
+			},
+		},
+		200,
+	);
+});

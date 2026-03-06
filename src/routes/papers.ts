@@ -1,0 +1,183 @@
+import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { eq, sql } from "drizzle-orm";
+import { closeDb, getDb } from "../db/client.ts";
+import { papers, paragraphs, sections } from "../db/schema.ts";
+import {
+	ErrorResponse,
+	PaperDetailResponse,
+	PaperIdParam,
+	PapersListResponse,
+	SectionsResponse,
+} from "../validators/schemas.ts";
+
+export const papersRoute = new OpenAPIHono();
+
+// GET /papers — list all papers
+const listPapersRoute = createRoute({
+	operationId: "listPapers",
+	method: "get",
+	path: "/",
+	tags: ["Papers"],
+	summary: "List all 197 papers",
+	description: "Returns metadata for all papers in the Urantia Book, ordered by paper number.",
+	responses: {
+		200: {
+			description: "List of all papers",
+			content: { "application/json": { schema: PapersListResponse } },
+		},
+		500: {
+			description: "Internal server error",
+			content: { "application/json": { schema: ErrorResponse } },
+		},
+	},
+});
+
+papersRoute.openapi(listPapersRoute, async (c) => {
+	const { db, close } = getDb();
+	const allPapers = await db
+		.select({
+			id: papers.id,
+			partId: papers.partId,
+			title: papers.title,
+			sortId: papers.sortId,
+			labels: papers.labels,
+		})
+		.from(papers)
+		.orderBy(papers.sortId);
+
+	closeDb(c, close);
+	return c.json({ data: allPapers }, 200);
+});
+
+// GET /papers/:id — single paper with all paragraphs
+const getPaperRoute = createRoute({
+	operationId: "getPaper",
+	method: "get",
+	path: "/{id}",
+	tags: ["Papers"],
+	summary: "Get a paper with all its paragraphs",
+	description:
+		"Returns a single paper's metadata along with all its paragraphs in order. Paper IDs range from 0 (Foreword) to 196.",
+	request: {
+		params: PaperIdParam,
+	},
+	responses: {
+		200: {
+			description: "Paper with paragraphs",
+			content: { "application/json": { schema: PaperDetailResponse } },
+		},
+		404: {
+			description: "Paper not found",
+			content: { "application/json": { schema: ErrorResponse } },
+		},
+		500: {
+			description: "Internal server error",
+			content: { "application/json": { schema: ErrorResponse } },
+		},
+	},
+});
+
+papersRoute.openapi(getPaperRoute, async (c) => {
+	const { db, close } = getDb();
+	const { id } = c.req.valid("param");
+
+	const paper = await db
+		.select({
+			id: papers.id,
+			partId: papers.partId,
+			title: papers.title,
+			sortId: papers.sortId,
+			labels: papers.labels,
+		})
+		.from(papers)
+		.where(eq(papers.id, id))
+		.limit(1);
+
+	if (paper.length === 0) {
+		closeDb(c, close);
+		return c.json({ error: `Paper ${id} not found` }, 404);
+	}
+
+	const paperParagraphs = await db
+		.select({
+			id: paragraphs.id,
+			standardReferenceId: paragraphs.standardReferenceId,
+			sortId: paragraphs.sortId,
+			paperId: paragraphs.paperId,
+			sectionId: sql<
+				string | null
+			>`CASE WHEN ${paragraphs.sectionId} IS NOT NULL THEN split_part(${paragraphs.sectionId}, '.', 2) ELSE NULL END`.as(
+				"sectionId",
+			),
+			partId: paragraphs.partId,
+			paperTitle: paragraphs.paperTitle,
+			sectionTitle: paragraphs.sectionTitle,
+			paragraphId: paragraphs.paragraphId,
+			text: paragraphs.text,
+			htmlText: paragraphs.htmlText,
+			labels: paragraphs.labels,
+			audio: paragraphs.audio,
+		})
+		.from(paragraphs)
+		.where(eq(paragraphs.paperId, id))
+		.orderBy(paragraphs.sortId);
+
+	closeDb(c, close);
+	return c.json(
+		{
+			data: {
+				paper: paper[0]!,
+				paragraphs: paperParagraphs,
+			},
+		},
+		200,
+	);
+});
+
+// GET /papers/:id/sections — sections within a paper
+const getPaperSectionsRoute = createRoute({
+	operationId: "getPaperSections",
+	method: "get",
+	path: "/{id}/sections",
+	tags: ["Papers"],
+	summary: "Get sections within a paper",
+	description: "Returns all sections for a given paper, ordered by section number.",
+	request: {
+		params: PaperIdParam,
+	},
+	responses: {
+		200: {
+			description: "List of sections",
+			content: { "application/json": { schema: SectionsResponse } },
+		},
+		404: {
+			description: "Paper not found",
+			content: { "application/json": { schema: ErrorResponse } },
+		},
+		500: {
+			description: "Internal server error",
+			content: { "application/json": { schema: ErrorResponse } },
+		},
+	},
+});
+
+papersRoute.openapi(getPaperSectionsRoute, async (c) => {
+	const { db, close } = getDb();
+	const { id } = c.req.valid("param");
+
+	const paper = await db.select().from(papers).where(eq(papers.id, id)).limit(1);
+
+	if (paper.length === 0) {
+		closeDb(c, close);
+		return c.json({ error: `Paper ${id} not found` }, 404);
+	}
+
+	const paperSections = await db
+		.select()
+		.from(sections)
+		.where(eq(sections.paperId, id))
+		.orderBy(sections.sortId);
+
+	closeDb(c, close);
+	return c.json({ data: paperSections }, 200);
+});
