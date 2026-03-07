@@ -1,20 +1,39 @@
-import { OpenAPIHono } from "@hono/zod-openapi";
 import { swaggerUI } from "@hono/swagger-ui";
+import { OpenAPIHono } from "@hono/zod-openapi";
+import { sql } from "drizzle-orm";
+import { closeDb, getDb } from "./db/client.ts";
+import { cacheControl } from "./middleware/cache.ts";
 import { corsMiddleware } from "./middleware/cors.ts";
 import { loggerMiddleware } from "./middleware/logger.ts";
-import { cacheControl } from "./middleware/cache.ts";
 import { rateLimiter } from "./middleware/rate-limit.ts";
-import { tocRoute } from "./routes/toc.ts";
+import { audioRoute } from "./routes/audio.ts";
 import { papersRoute } from "./routes/papers.ts";
 import { paragraphsRoute } from "./routes/paragraphs.ts";
 import { searchRoute } from "./routes/search.ts";
-import { audioRoute } from "./routes/audio.ts";
+import { tocRoute } from "./routes/toc.ts";
 
 const app = new OpenAPIHono();
 
 // Global error handler
 app.onError((err, c) => {
-	console.error(`[ERROR] ${c.req.method} ${c.req.path}:`, err.message);
+	const logger = c.get("logger");
+	const ip =
+		c.req.header("cf-connecting-ip") ??
+		c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
+		"unknown";
+
+	if (logger) {
+		logger.error(err.message, {
+			method: c.req.method,
+			path: c.req.path,
+			stack: err.stack,
+			cf_ray: c.req.header("cf-ray") ?? undefined,
+			ip,
+		});
+	} else {
+		console.error(`[ERROR] ${c.req.method} ${c.req.path}:`, err.message);
+	}
+
 	return c.json({ error: "Internal server error" }, 500);
 });
 
@@ -33,6 +52,29 @@ app.get("/", (c) =>
 		openapi: "/openapi.json",
 	}),
 );
+
+// Health check with DB connectivity
+app.get("/health", async (c) => {
+	const timestamp = new Date().toISOString();
+	try {
+		const { db, close } = getDb();
+		await db.execute(sql`SELECT 1`);
+		closeDb(c, close);
+		c.header("Cache-Control", "no-store");
+		return c.json({ status: "healthy", db: "connected", timestamp });
+	} catch (err) {
+		c.header("Cache-Control", "no-store");
+		return c.json(
+			{
+				status: "unhealthy",
+				db: "error",
+				error: err instanceof Error ? err.message : "Unknown error",
+				timestamp,
+			},
+			503,
+		);
+	}
+});
 
 // robots.txt
 app.get("/robots.txt", (c) => {

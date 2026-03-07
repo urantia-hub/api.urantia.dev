@@ -128,6 +128,18 @@ searchRoute.openapi(searchParagraphsRoute, async (c) => {
 		.offset(offset);
 
 	closeDb(c, close);
+
+	const logger = c.get("logger");
+	if (logger) {
+		logger.info("search", {
+			query: q,
+			search_type: type,
+			paper_id: paperId ?? undefined,
+			part_id: partId ?? undefined,
+			result_count: total,
+		});
+	}
+
 	return c.json(
 		{
 			data: results,
@@ -238,6 +250,17 @@ searchRoute.openapi(semanticSearchRoute, async (c) => {
 		.offset(offset);
 
 	closeDb(c, close);
+
+	const logger = c.get("logger");
+	if (logger) {
+		logger.info("semantic_search", {
+			query: q,
+			paper_id: paperId ?? undefined,
+			part_id: partId ?? undefined,
+			result_count: total,
+		});
+	}
+
 	return c.json(
 		{
 			data: results,

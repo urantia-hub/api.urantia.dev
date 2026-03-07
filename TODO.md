@@ -2,7 +2,7 @@
 
 ## Next up
 
-- [ ] **Structured logging** — Add Axiom (free tier) or Cloudflare Logpush for production observability. Currently only `console.error` in the error handler, only visible via `wrangler tail`.
+- [x] **Structured logging** — BetterStack via `@logtail/edge`. Structured JSON logs with request metadata, search query metrics, and error tracking with stack traces. Health check at `GET /health`.
 
 - [x] **Tests** — 70 integration + unit tests across all endpoints, middleware, and `detectRefFormat`. Run with `bun test`. Semantic search tests conditional on `OPENAI_API_KEY`.
 
