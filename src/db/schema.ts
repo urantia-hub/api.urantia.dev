@@ -15,6 +15,9 @@ const vector = customType<{ data: number[] }>({
 type AudioVariant = { format: string; url: string };
 type AudioData = Record<string, Record<string, AudioVariant>> | null;
 
+type ParagraphEntity = { id: string; name: string; type: string };
+type EntitiesData = ParagraphEntity[] | null;
+
 const jsonb = customType<{ data: AudioData }>({
 	dataType() {
 		return "jsonb";
@@ -25,6 +28,19 @@ const jsonb = customType<{ data: AudioData }>({
 	fromDriver(value: unknown) {
 		if (typeof value === "string") return JSON.parse(value) as AudioData;
 		return value as AudioData;
+	},
+});
+
+const entitiesJsonb = customType<{ data: EntitiesData }>({
+	dataType() {
+		return "jsonb";
+	},
+	toDriver(value: EntitiesData) {
+		return value === null ? null : JSON.stringify(value);
+	},
+	fromDriver(value: unknown) {
+		if (typeof value === "string") return JSON.parse(value) as EntitiesData;
+		return value as EntitiesData;
 	},
 });
 
@@ -103,6 +119,9 @@ export const paragraphs = pgTable(
 		embedding: vector("embedding"),
 
 		audio: jsonb("audio"),
+
+		// Entity mentions — populated via populate-paragraphs script from Urantiapedia topic index
+		entities: entitiesJsonb("entities"),
 	},
 	(t) => [
 		index("paragraphs_paper_id_idx").on(t.paperId),

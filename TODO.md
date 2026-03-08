@@ -8,6 +8,13 @@
 
 - [x] **Semantic search** — `POST /search/semantic` endpoint with pgvector cosine similarity. Embeddings generated via `text-embedding-3-small`, stored in DB + `data/embeddings.json`. HNSW index for fast vector search.
 
+## Next up
+
+- [ ] **Entity enrichment** — Typed entity mentions (being, place, order, race, concept) with character-level spans on every paragraph, plus theme tags for discovery. ~5,000 entities seeded from Urantiapedia + LLM extraction pass. New endpoints: `/entities`, `/entities/{id}`, `/entities/{id}/paragraphs`, `/themes`, `/themes/{id}/paragraphs`. Estimated cost: ~$15 in LLM API fees. See `ENTITY_ENRICHMENT_GAMEPLAN.md` for full plan and `EXTERNAL_SOURCES.md` for data source research.
+  - [ ] Part A: Build enriched data (parse Urantiapedia, LLM entity extraction, theme classification, alias resolution, validation)
+  - [ ] Part B: DB schema + API endpoints (entities/themes tables, JSONB columns on paragraphs, new routes)
+  - [ ] Part C: Typed relation inference + graph traversal (deferred)
+
 ## Future
 
 - [ ] **Hyperdrive** — Cloudflare's edge connection pooler. Would replace per-request DB connections with pooled ones. Requires Workers Paid plan ($5/mo). Not needed yet but worth it at scale.

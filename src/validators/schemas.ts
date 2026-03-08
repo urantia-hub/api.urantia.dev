@@ -57,6 +57,14 @@ const AudioSchema = z
 	)
 	.nullable();
 
+// --- Entity ---
+
+export const ParagraphEntitySchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	type: z.enum(["being", "place", "order", "race", "religion", "concept"]),
+});
+
 // --- Paragraph ---
 
 export const ParagraphSchema = z.object({
@@ -73,6 +81,7 @@ export const ParagraphSchema = z.object({
 	htmlText: z.string(),
 	labels: z.array(z.string()).nullable(),
 	audio: AudioSchema,
+	entities: z.array(ParagraphEntitySchema).nullable(),
 });
 
 // --- TOC ---

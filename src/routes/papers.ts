@@ -117,6 +117,7 @@ papersRoute.openapi(getPaperRoute, async (c) => {
 			htmlText: paragraphs.htmlText,
 			labels: paragraphs.labels,
 			audio: paragraphs.audio,
+			entities: paragraphs.entities,
 		})
 		.from(paragraphs)
 		.where(eq(paragraphs.paperId, id))

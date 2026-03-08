@@ -2,6 +2,7 @@ import { expect } from "bun:test";
 
 const PARAGRAPH_KEYS = [
 	"audio",
+	"entities",
 	"htmlText",
 	"id",
 	"labels",

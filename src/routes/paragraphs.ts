@@ -32,6 +32,7 @@ const paragraphFields = {
 	htmlText: paragraphs.htmlText,
 	labels: paragraphs.labels,
 	audio: paragraphs.audio,
+	entities: paragraphs.entities,
 } as const;
 
 // Helper to find a paragraph by any reference format
