@@ -2,8 +2,10 @@ import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { eq, sql } from "drizzle-orm";
 import { closeDb, getDb } from "../db/client.ts";
 import { papers, paragraphs, sections } from "../db/schema.ts";
+import { enrichWithEntities, wantsEntities } from "../lib/entities.ts";
 import {
 	ErrorResponse,
+	IncludeQuery,
 	PaperDetailResponse,
 	PaperIdParam,
 	PapersListResponse,
@@ -57,9 +59,10 @@ const getPaperRoute = createRoute({
 	tags: ["Papers"],
 	summary: "Get a paper with all its paragraphs",
 	description:
-		"Returns a single paper's metadata along with all its paragraphs in order. Paper IDs range from 0 (Foreword) to 196.",
+		"Returns a single paper's metadata along with all its paragraphs in order. Paper IDs range from 0 (Foreword) to 196.\n\nUse `?include=entities` to include typed entity mentions in each paragraph.",
 	request: {
 		params: PaperIdParam,
+		query: IncludeQuery,
 	},
 	responses: {
 		200: {
@@ -80,6 +83,7 @@ const getPaperRoute = createRoute({
 papersRoute.openapi(getPaperRoute, async (c) => {
 	const { db, close } = getDb();
 	const { id } = c.req.valid("param");
+	const { include } = c.req.valid("query");
 
 	const paper = await db
 		.select({
@@ -122,12 +126,16 @@ papersRoute.openapi(getPaperRoute, async (c) => {
 		.where(eq(paragraphs.paperId, id))
 		.orderBy(paragraphs.sortId);
 
+	const enrichedParagraphs = wantsEntities(include)
+		? await enrichWithEntities(db, paperParagraphs)
+		: paperParagraphs;
+
 	closeDb(c, close);
 	return c.json(
 		{
 			data: {
 				paper: paper[0]!,
-				paragraphs: paperParagraphs,
+				paragraphs: enrichedParagraphs,
 			},
 		},
 		200,

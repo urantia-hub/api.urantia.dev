@@ -57,6 +57,14 @@ const AudioSchema = z
 	)
 	.nullable();
 
+// --- Paragraph Entity (inline on paragraph when include=entities) ---
+
+export const ParagraphEntitySchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	type: z.enum(["being", "place", "order", "race", "religion", "concept"]),
+});
+
 // --- Paragraph ---
 
 export const ParagraphSchema = z.object({
@@ -73,6 +81,7 @@ export const ParagraphSchema = z.object({
 	htmlText: z.string(),
 	labels: z.array(z.string()).nullable(),
 	audio: AudioSchema,
+	entities: z.array(ParagraphEntitySchema).optional(),
 });
 
 // --- TOC ---
@@ -142,6 +151,7 @@ export const SearchRequest = z.object({
 	paperId: z.string().optional(),
 	partId: z.string().optional(),
 	type: z.enum(["phrase", "and", "or"]).default("and"),
+	include: z.string().optional(),
 });
 
 export const SearchResultSchema = ParagraphSchema.extend({
@@ -161,6 +171,7 @@ export const SemanticSearchRequest = z.object({
 	limit: z.number().int().min(1).max(100).default(20),
 	paperId: z.string().optional(),
 	partId: z.string().optional(),
+	include: z.string().optional(),
 });
 
 export const SemanticSearchResultSchema = ParagraphSchema.extend({
@@ -197,6 +208,11 @@ export const AudioParam = z.object({
 
 export const ContextQuery = z.object({
 	window: z.coerce.number().int().min(1).max(10).default(2),
+	include: z.string().optional(),
+});
+
+export const IncludeQuery = z.object({
+	include: z.string().optional(),
 });
 
 // --- Entity ---

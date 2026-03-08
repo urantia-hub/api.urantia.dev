@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import OpenAI from "openai";
 import { closeDb, getDb } from "../db/client.ts";
 import { paragraphs } from "../db/schema.ts";
+import { enrichWithEntities, wantsEntities } from "../lib/entities.ts";
 import {
 	ErrorResponse,
 	SearchRequest,
@@ -67,7 +68,7 @@ Results are ranked by relevance. Optional filters: paperId, partId.`,
 searchRoute.openapi(searchParagraphsRoute, async (c) => {
 	const { db, close } = getDb();
 	const body = c.req.valid("json");
-	const { q, page, limit, paperId, partId, type } = body;
+	const { q, page, limit, paperId, partId, type, include } = body;
 
 	const sanitized = q.replace(/[^\w\s]/g, " ").trim();
 
@@ -127,8 +128,6 @@ searchRoute.openapi(searchParagraphsRoute, async (c) => {
 		.limit(limit)
 		.offset(offset);
 
-	closeDb(c, close);
-
 	const logger = c.get("logger");
 	if (logger) {
 		logger.info("search", {
@@ -140,9 +139,15 @@ searchRoute.openapi(searchParagraphsRoute, async (c) => {
 		});
 	}
 
+	const enrichedResults = wantsEntities(include)
+		? await enrichWithEntities(db, results)
+		: results;
+
+	closeDb(c, close);
+
 	return c.json(
 		{
-			data: results,
+			data: enrichedResults,
 			meta: {
 				page,
 				limit,
@@ -188,7 +193,7 @@ Optional filters: paperId, partId.`,
 
 searchRoute.openapi(semanticSearchRoute, async (c) => {
 	const { db, close } = getDb();
-	const { q, page, limit, paperId, partId } = c.req.valid("json");
+	const { q, page, limit, paperId, partId, include } = c.req.valid("json");
 	const offset = page * limit;
 
 	const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -249,8 +254,6 @@ searchRoute.openapi(semanticSearchRoute, async (c) => {
 		.limit(limit)
 		.offset(offset);
 
-	closeDb(c, close);
-
 	const logger = c.get("logger");
 	if (logger) {
 		logger.info("semantic_search", {
@@ -261,9 +264,15 @@ searchRoute.openapi(semanticSearchRoute, async (c) => {
 		});
 	}
 
+	const enrichedResults = wantsEntities(include)
+		? await enrichWithEntities(db, results)
+		: results;
+
+	closeDb(c, close);
+
 	return c.json(
 		{
-			data: results,
+			data: enrichedResults,
 			meta: {
 				page,
 				limit,

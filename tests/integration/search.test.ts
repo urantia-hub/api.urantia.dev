@@ -93,7 +93,7 @@ describe.skipIf(!hasOpenAI)("POST /search/semantic", () => {
 			limit: 3,
 		});
 		expect(res.status).toBe(200);
-	});
+	}, 15_000);
 
 	it("each result has paragraph shape + similarity", async () => {
 		const res = await post("/search/semantic", {

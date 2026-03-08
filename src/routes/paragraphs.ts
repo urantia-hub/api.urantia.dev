@@ -2,10 +2,12 @@ import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { and, eq, gt, lt, sql } from "drizzle-orm";
 import { closeDb, getDb } from "../db/client.ts";
 import { paragraphs } from "../db/schema.ts";
+import { enrichWithEntities, wantsEntities } from "../lib/entities.ts";
 import { detectRefFormat } from "../types/node.ts";
 import {
 	ContextQuery,
 	ErrorResponse,
+	IncludeQuery,
 	ParagraphContextResponse,
 	ParagraphRefParam,
 	ParagraphResponse,
@@ -70,7 +72,10 @@ const getRandomRoute = createRoute({
 	tags: ["Paragraphs"],
 	summary: "Get a random paragraph",
 	description:
-		"Returns a single random paragraph from the Urantia Book. Useful for daily quotes or exploration.",
+		"Returns a single random paragraph from the Urantia Book. Useful for daily quotes or exploration.\n\nUse `?include=entities` to include typed entity mentions in the response.",
+	request: {
+		query: IncludeQuery,
+	},
 	responses: {
 		200: {
 			description: "A random paragraph",
@@ -85,15 +90,20 @@ const getRandomRoute = createRoute({
 
 paragraphsRoute.openapi(getRandomRoute, async (c) => {
 	const { db, close } = getDb();
+	const { include } = c.req.valid("query");
 	const result = await db.select(paragraphFields).from(paragraphs).orderBy(sql`RANDOM()`).limit(1);
 
-	closeDb(c, close);
-
 	if (result.length === 0) {
+		closeDb(c, close);
 		return c.json({ error: "No paragraphs found" }, 500);
 	}
 
-	return c.json({ data: result[0]! }, 200);
+	const data = wantsEntities(include)
+		? (await enrichWithEntities(db, result))[0]!
+		: result[0]!;
+
+	closeDb(c, close);
+	return c.json({ data }, 200);
 });
 
 // GET /paragraphs/:ref — paragraph by any reference format
@@ -108,9 +118,10 @@ const getParagraphRoute = createRoute({
 - **standardReferenceId**: "2:0.1" (paperId:sectionId.paragraphId)
 - **paperSectionParagraphId**: "2.0.1" (paperId.sectionId.paragraphId)
 
-The format is auto-detected from the reference string.`,
+The format is auto-detected from the reference string.\n\nUse \`?include=entities\` to include typed entity mentions in the response.`,
 	request: {
 		params: ParagraphRefParam,
+		query: IncludeQuery,
 	},
 	responses: {
 		200: {
@@ -135,6 +146,7 @@ The format is auto-detected from the reference string.`,
 paragraphsRoute.openapi(getParagraphRoute, async (c) => {
 	const { db, close } = getDb();
 	const { ref } = c.req.valid("param");
+	const { include } = c.req.valid("query");
 	const format = detectRefFormat(ref);
 
 	if (format === "unknown") {
@@ -149,13 +161,17 @@ paragraphsRoute.openapi(getParagraphRoute, async (c) => {
 
 	const result = await findParagraphByRef(db, ref);
 
-	closeDb(c, close);
-
 	if (result.length === 0) {
+		closeDb(c, close);
 		return c.json({ error: `Paragraph "${ref}" not found` }, 404);
 	}
 
-	return c.json({ data: result[0]! }, 200);
+	const data = wantsEntities(include)
+		? (await enrichWithEntities(db, result))[0]!
+		: result[0]!;
+
+	closeDb(c, close);
+	return c.json({ data }, 200);
 });
 
 // GET /paragraphs/:ref/context — paragraph with surrounding context
@@ -167,7 +183,7 @@ const getParagraphContextRoute = createRoute({
 	summary: "Get a paragraph with surrounding context",
 	description: `Returns the target paragraph along with N paragraphs before and after it (ordered by sort_id).
 Useful for AI agents doing RAG that need surrounding context for better understanding.
-The \`window\` query parameter controls how many paragraphs before/after to include (default: 2, max: 10).`,
+The \`window\` query parameter controls how many paragraphs before/after to include (default: 2, max: 10).\n\nUse \`?include=entities\` to include typed entity mentions in the response.`,
 	request: {
 		params: ParagraphRefParam,
 		query: ContextQuery,
@@ -197,7 +213,7 @@ The \`window\` query parameter controls how many paragraphs before/after to incl
 paragraphsRoute.openapi(getParagraphContextRoute, async (c) => {
 	const { db, close } = getDb();
 	const { ref } = c.req.valid("param");
-	const { window: windowSize } = c.req.valid("query");
+	const { window: windowSize, include } = c.req.valid("query");
 	const format = detectRefFormat(ref);
 
 	if (format === "unknown") {
@@ -244,6 +260,24 @@ paragraphsRoute.openapi(getParagraphContextRoute, async (c) => {
 		)
 		.orderBy(paragraphs.sortId)
 		.limit(windowSize);
+
+	if (wantsEntities(include)) {
+		const allParagraphs = [targetParagraph, ...before, ...after];
+		const enriched = await enrichWithEntities(db, allParagraphs);
+		const enrichedMap = new Map(enriched.map((p) => [p.id, p]));
+
+		closeDb(c, close);
+		return c.json(
+			{
+				data: {
+					target: enrichedMap.get(targetParagraph.id)!,
+					before: before.reverse().map((p) => enrichedMap.get(p.id)!),
+					after: after.map((p) => enrichedMap.get(p.id)!),
+				},
+			},
+			200,
+		);
+	}
 
 	closeDb(c, close);
 	return c.json(
