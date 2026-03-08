@@ -27,6 +27,16 @@ const SECTION_KEYS = [
 	"title",
 ];
 
+const ENTITY_KEYS = [
+	"aliases",
+	"citationCount",
+	"description",
+	"id",
+	"name",
+	"seeAlso",
+	"type",
+];
+
 const META_KEYS = ["limit", "page", "total", "totalPages"];
 
 export function assertParagraphShape(p: Record<string, unknown>) {
@@ -49,6 +59,10 @@ export function assertSemanticResultShape(r: Record<string, unknown>) {
 	expect(Object.keys(r).sort()).toEqual(
 		[...PARAGRAPH_KEYS, "similarity"].sort(),
 	);
+}
+
+export function assertEntityShape(e: Record<string, unknown>) {
+	expect(Object.keys(e).sort()).toEqual(ENTITY_KEYS);
 }
 
 export function assertMetaShape(m: Record<string, unknown>) {

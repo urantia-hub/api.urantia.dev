@@ -1,4 +1,4 @@
-import { customType, index, pgTable, text } from "drizzle-orm/pg-core";
+import { customType, index, integer, pgTable, text } from "drizzle-orm/pg-core";
 
 const tsvector = customType<{ data: string }>({
 	dataType() {
@@ -15,9 +15,6 @@ const vector = customType<{ data: number[] }>({
 type AudioVariant = { format: string; url: string };
 type AudioData = Record<string, Record<string, AudioVariant>> | null;
 
-type ParagraphEntity = { id: string; name: string; type: string };
-type EntitiesData = ParagraphEntity[] | null;
-
 const jsonb = customType<{ data: AudioData }>({
 	dataType() {
 		return "jsonb";
@@ -28,19 +25,6 @@ const jsonb = customType<{ data: AudioData }>({
 	fromDriver(value: unknown) {
 		if (typeof value === "string") return JSON.parse(value) as AudioData;
 		return value as AudioData;
-	},
-});
-
-const entitiesJsonb = customType<{ data: EntitiesData }>({
-	dataType() {
-		return "jsonb";
-	},
-	toDriver(value: EntitiesData) {
-		return value === null ? null : JSON.stringify(value);
-	},
-	fromDriver(value: unknown) {
-		if (typeof value === "string") return JSON.parse(value) as EntitiesData;
-		return value as EntitiesData;
 	},
 });
 
@@ -119,9 +103,6 @@ export const paragraphs = pgTable(
 		embedding: vector("embedding"),
 
 		audio: jsonb("audio"),
-
-		// Entity mentions — populated via populate-paragraphs script from Urantiapedia topic index
-		entities: entitiesJsonb("entities"),
 	},
 	(t) => [
 		index("paragraphs_paper_id_idx").on(t.paperId),
@@ -129,5 +110,37 @@ export const paragraphs = pgTable(
 		index("paragraphs_sort_id_idx").on(t.sortId),
 		index("paragraphs_std_ref_idx").on(t.standardReferenceId),
 		index("paragraphs_psp_id_idx").on(t.paperSectionParagraphId),
+	],
+);
+
+// --- entities ---
+export const entities = pgTable(
+	"entities",
+	{
+		id: text("id").primaryKey(),
+		name: text("name").notNull(),
+		type: text("type").notNull(),
+		aliases: text("aliases").array(),
+		description: text("description"),
+		seeAlso: text("see_also").array(),
+		citationCount: integer("citation_count").notNull(),
+	},
+	(t) => [index("entities_type_idx").on(t.type)],
+);
+
+// --- paragraph_entities (junction) ---
+export const paragraphEntities = pgTable(
+	"paragraph_entities",
+	{
+		paragraphId: text("paragraph_id")
+			.notNull()
+			.references(() => paragraphs.id),
+		entityId: text("entity_id")
+			.notNull()
+			.references(() => entities.id),
+	},
+	(t) => [
+		index("pe_paragraph_id_idx").on(t.paragraphId),
+		index("pe_entity_id_idx").on(t.entityId),
 	],
 );

@@ -7,6 +7,7 @@ import { corsMiddleware } from "./middleware/cors.ts";
 import { loggerMiddleware } from "./middleware/logger.ts";
 import { rateLimiter } from "./middleware/rate-limit.ts";
 import { audioRoute } from "./routes/audio.ts";
+import { entitiesRoute } from "./routes/entities.ts";
 import { papersRoute } from "./routes/papers.ts";
 import { paragraphsRoute } from "./routes/paragraphs.ts";
 import { searchRoute } from "./routes/search.ts";
@@ -114,6 +115,7 @@ app.route("/toc", tocRoute);
 app.route("/papers", papersRoute);
 app.route("/paragraphs", paragraphsRoute);
 app.route("/search", searchRoute);
+app.route("/entities", entitiesRoute);
 app.route("/audio", audioRoute);
 
 // OpenAPI spec

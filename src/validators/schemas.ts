@@ -57,14 +57,6 @@ const AudioSchema = z
 	)
 	.nullable();
 
-// --- Entity ---
-
-export const ParagraphEntitySchema = z.object({
-	id: z.string(),
-	name: z.string(),
-	type: z.enum(["being", "place", "order", "race", "religion", "concept"]),
-});
-
 // --- Paragraph ---
 
 export const ParagraphSchema = z.object({
@@ -81,7 +73,6 @@ export const ParagraphSchema = z.object({
 	htmlText: z.string(),
 	labels: z.array(z.string()).nullable(),
 	audio: AudioSchema,
-	entities: z.array(ParagraphEntitySchema).nullable().optional(),
 });
 
 // --- TOC ---
@@ -151,7 +142,6 @@ export const SearchRequest = z.object({
 	paperId: z.string().optional(),
 	partId: z.string().optional(),
 	type: z.enum(["phrase", "and", "or"]).default("and"),
-	include: z.string().optional(),
 });
 
 export const SearchResultSchema = ParagraphSchema.extend({
@@ -171,7 +161,6 @@ export const SemanticSearchRequest = z.object({
 	limit: z.number().int().min(1).max(100).default(20),
 	paperId: z.string().optional(),
 	partId: z.string().optional(),
-	include: z.string().optional(),
 });
 
 export const SemanticSearchResultSchema = ParagraphSchema.extend({
@@ -208,27 +197,42 @@ export const AudioParam = z.object({
 
 export const ContextQuery = z.object({
 	window: z.coerce.number().int().min(1).max(10).default(2),
-	include: z.string().optional(),
 });
 
-export const IncludeQuery = z.object({
-	include: z.string().optional(),
+// --- Entity ---
+
+export const EntitySchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	type: z.enum(["being", "place", "order", "race", "religion", "concept"]),
+	aliases: z.array(z.string()).nullable(),
+	description: z.string().nullable(),
+	seeAlso: z.array(z.string()).nullable(),
+	citationCount: z.number().int(),
 });
 
-/** Check if a field should be included based on the `include` query param */
-export function shouldInclude(includeParam: string | undefined, field: string): boolean {
-	if (!includeParam) return false;
-	return includeParam.split(",").map((s) => s.trim()).includes(field);
-}
+export const EntitiesListQuery = z.object({
+	page: z.coerce.number().int().min(0).default(0),
+	limit: z.coerce.number().int().min(1).max(100).default(20),
+	type: z.enum(["being", "place", "order", "race", "religion", "concept"]).optional(),
+	q: z.string().max(200).optional(),
+});
 
-/** Strip entities from a paragraph result unless include=entities was requested */
-export function applyIncludes<T extends { entities?: unknown }>(
-	result: T,
-	includeParam: string | undefined,
-): T {
-	if (!shouldInclude(includeParam, "entities")) {
-		const { entities, ...rest } = result;
-		return rest as T;
-	}
-	return result;
-}
+export const EntityIdParam = z.object({ id: z.string() });
+
+export const EntityParagraphsQuery = z.object({
+	page: z.coerce.number().int().min(0).default(0),
+	limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const EntitiesListResponse = z.object({
+	data: z.array(EntitySchema),
+	meta: PaginationMeta,
+});
+
+export const EntityDetailResponse = z.object({ data: EntitySchema });
+
+export const EntityParagraphsResponse = z.object({
+	data: z.array(ParagraphSchema),
+	meta: PaginationMeta,
+});

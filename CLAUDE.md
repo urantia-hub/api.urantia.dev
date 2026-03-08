@@ -26,7 +26,7 @@ AI/developer-first API for the Urantia Papers.
 - `src/db/schema.ts` — Drizzle table definitions
 - `src/db/client.ts` — Database client
 - `src/lib/logger.ts` — BetterStack logger factory (dev fallback to console)
-- `src/routes/` — API route handlers (toc, papers, paragraphs, search, audio)
+- `src/routes/` — API route handlers (toc, papers, paragraphs, search, entities, audio)
 - `src/middleware/` — CORS, structured logging, rate limiting, cache control
 - `src/validators/schemas.ts` — Zod schemas for request/response
 - `src/types/node.ts` — TypeScript types + ref format detection
@@ -41,6 +41,3 @@ AI/developer-first API for the Urantia Papers.
 - **Health check**: `GET /health` verifies DB connectivity.
 - **Uptime monitoring**: BetterStack uptime monitor on `/health`.
 
-## Changelog
-
-When making user-facing changes to the API (new endpoints, breaking changes, new features), update the changelog in the Mintlify docs at `../urantia-dev-mintlify-docs/changelog.mdx`.

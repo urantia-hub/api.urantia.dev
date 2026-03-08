@@ -9,7 +9,6 @@ import {
 	SearchResponse,
 	SemanticSearchRequest,
 	SemanticSearchResponse,
-	applyIncludes,
 } from "../validators/schemas.ts";
 
 export const searchRoute = new OpenAPIHono();
@@ -68,7 +67,7 @@ Results are ranked by relevance. Optional filters: paperId, partId.`,
 searchRoute.openapi(searchParagraphsRoute, async (c) => {
 	const { db, close } = getDb();
 	const body = c.req.valid("json");
-	const { q, page, limit, paperId, partId, type, include } = body;
+	const { q, page, limit, paperId, partId, type } = body;
 
 	const sanitized = q.replace(/[^\w\s]/g, " ").trim();
 
@@ -120,7 +119,6 @@ searchRoute.openapi(searchParagraphsRoute, async (c) => {
 			htmlText: paragraphs.htmlText,
 			labels: paragraphs.labels,
 			audio: paragraphs.audio,
-			entities: paragraphs.entities,
 			rank: sql<number>`ts_rank(search_vector, ${sql.raw(tsQuery)})`,
 		})
 		.from(paragraphs)
@@ -144,7 +142,7 @@ searchRoute.openapi(searchParagraphsRoute, async (c) => {
 
 	return c.json(
 		{
-			data: results.map((r) => applyIncludes(r, include)),
+			data: results,
 			meta: {
 				page,
 				limit,
@@ -190,7 +188,7 @@ Optional filters: paperId, partId.`,
 
 searchRoute.openapi(semanticSearchRoute, async (c) => {
 	const { db, close } = getDb();
-	const { q, page, limit, paperId, partId, include } = c.req.valid("json");
+	const { q, page, limit, paperId, partId } = c.req.valid("json");
 	const offset = page * limit;
 
 	const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -243,7 +241,6 @@ searchRoute.openapi(semanticSearchRoute, async (c) => {
 			htmlText: paragraphs.htmlText,
 			labels: paragraphs.labels,
 			audio: paragraphs.audio,
-			entities: paragraphs.entities,
 			similarity: sql<number>`1 - (embedding <=> ${vectorStr}::vector)`,
 		})
 		.from(paragraphs)
@@ -266,7 +263,7 @@ searchRoute.openapi(semanticSearchRoute, async (c) => {
 
 	return c.json(
 		{
-			data: results.map((r) => applyIncludes(r, include)),
+			data: results,
 			meta: {
 				page,
 				limit,
