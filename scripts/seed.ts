@@ -13,7 +13,7 @@ if (!DATABASE_URL) {
 
 const DATA_DIR =
   process.env.DATA_DIR ??
-  join(import.meta.dir, "../../urantia-papers-json/data/json/eng");
+  join(import.meta.dir, "../../urantia-data-sources/data/json/eng");
 
 const MANIFEST_PATH =
   process.env.AUDIO_MANIFEST ??

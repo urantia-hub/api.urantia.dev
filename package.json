@@ -31,9 +31,11 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@hono/mcp": "^0.2.4",
     "@hono/swagger-ui": "^0.5.3",
     "@hono/zod-openapi": "^1.2.2",
     "@logtail/edge": "^0.5.8",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.12.3",
     "openai": "^6.27.0",

@@ -8,6 +8,7 @@ import { loggerMiddleware } from "./middleware/logger.ts";
 import { rateLimiter } from "./middleware/rate-limit.ts";
 import { audioRoute } from "./routes/audio.ts";
 import { entitiesRoute } from "./routes/entities.ts";
+import { mcpRoute } from "./routes/mcp.ts";
 import { papersRoute } from "./routes/papers.ts";
 import { paragraphsRoute } from "./routes/paragraphs.ts";
 import { searchRoute } from "./routes/search.ts";
@@ -109,6 +110,9 @@ app.get("/sitemap.xml", (c) => {
 </urlset>`;
 	return c.text(sitemap, 200, { "Content-Type": "application/xml" });
 });
+
+// MCP server (mounted before OpenAPI doc generation so it doesn't pollute the REST spec)
+app.route("/mcp", mcpRoute);
 
 // Routes
 app.route("/toc", tocRoute);

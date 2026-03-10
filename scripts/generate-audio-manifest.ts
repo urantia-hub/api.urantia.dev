@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 
 const MP3_DIR =
 	process.env.MP3_DIR ??
-	join(import.meta.dir, "../../urantia-hub-api/public/data/mp3/eng");
+	join(import.meta.dir, "../../urantia-data-sources/data/audio/eng");
 
 const CDN_BASE = "https://audio.urantia.dev";
 const OUTPUT_PATH = join(import.meta.dir, "../data/audio-manifest.json");

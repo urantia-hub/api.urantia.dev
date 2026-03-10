@@ -27,7 +27,8 @@ export const CATEGORY_MAP: Record<string, EntityType> = {
 	OTHER: "concept",
 };
 
-export const TOPIC_INDEX_DIR = "../../../urantiapedia/input/txt/topic-index-en";
+export const TOPIC_INDEX_DIR =
+	process.env.TOPIC_INDEX_DIR ?? "../../../urantiapedia/input/txt/topic-index-en";
 
 /** Convert a name to a kebab-case slug for use as entity ID */
 export function slugify(name: string): string {
