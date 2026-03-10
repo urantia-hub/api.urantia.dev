@@ -1,6 +1,7 @@
 import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { sql } from "drizzle-orm";
+import { HTTPException } from "hono/http-exception";
 import { closeDb, getDb } from "./db/client.ts";
 import { cacheControl } from "./middleware/cache.ts";
 import { corsMiddleware } from "./middleware/cors.ts";
@@ -18,6 +19,11 @@ const app = new OpenAPIHono();
 
 // Global error handler
 app.onError((err, c) => {
+	// Let HTTPException propagate with its own response (used by @hono/mcp)
+	if (err instanceof HTTPException) {
+		return err.getResponse();
+	}
+
 	const logger = c.get("logger");
 	const ip =
 		c.req.header("cf-connecting-ip") ??
