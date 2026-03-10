@@ -48,10 +48,13 @@ async function callTool(name: string, args: Record<string, unknown> = {}) {
 }
 
 describe("MCP Server", () => {
-	it("rejects GET /mcp without SSE accept header", async () => {
+	it("returns discovery response for GET /mcp", async () => {
 		const res = await app.request("/mcp", { method: "GET" });
-		// MCP Streamable HTTP spec requires Accept: text/event-stream for GET
-		expect(res.status).toBeGreaterThanOrEqual(400);
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.server.name).toBe("Urantia Papers API");
+		expect(Object.keys(body.capabilities.tools).length).toBe(13);
+		expect(body.usage.config.mcpServers["urantia-papers"].url).toBe("https://api.urantia.dev/mcp");
 	});
 
 	it("handles initialize request", async () => {

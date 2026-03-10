@@ -602,8 +602,63 @@ function createMcpServer() {
 	return server;
 }
 
-// Hono route handler — stateless per-request MCP server + transport
-mcpRoute.all("/", async (c) => {
+// Discovery response for browser/GET requests without SSE accept header
+mcpRoute.get("/", async (c) => {
+	if (c.req.header("Accept")?.includes("text/event-stream")) {
+		// Proper MCP SSE request — let the transport handle it
+		const server = createMcpServer();
+		const transport = new StreamableHTTPTransport({ sessionIdGenerator: undefined });
+		await server.connect(transport);
+		return transport.handleRequest(c);
+	}
+
+	// Browser or curl — return a friendly discovery response
+	return c.json({
+		server: {
+			name: "Urantia Papers API",
+			version: "1.0.0",
+			transport: "streamable-http",
+			docs: "https://urantia.dev/mcp",
+		},
+		capabilities: {
+			tools: {
+				get_table_of_contents: { description: "Get the full table of contents — all 4 parts and 197 papers" },
+				list_papers: { description: "List all 197 papers with metadata" },
+				get_paper: { description: "Get a single paper with all its paragraphs", params: ["paper_id", "include_entities"] },
+				get_paper_sections: { description: "Get all sections within a paper", params: ["paper_id"] },
+				get_random_paragraph: { description: "Get a random paragraph", params: ["include_entities"] },
+				get_paragraph: { description: "Look up a paragraph by reference (3 formats auto-detected)", params: ["ref", "include_entities"] },
+				get_paragraph_context: { description: "Get a paragraph with surrounding context", params: ["ref", "window", "include_entities"] },
+				search: { description: "Full-text search (and/or/phrase modes)", params: ["q", "type", "paper_id", "part_id", "page", "limit", "include_entities"] },
+				semantic_search: { description: "Semantic similarity search via vector embeddings", params: ["q", "paper_id", "part_id", "page", "limit", "include_entities"] },
+				list_entities: { description: "Browse 4,400+ entities (beings, places, orders, races, religions, concepts)", params: ["type", "q", "page", "limit"] },
+				get_entity: { description: "Get entity details by slug ID", params: ["entity_id"] },
+				get_entity_paragraphs: { description: "Get all paragraphs mentioning an entity", params: ["entity_id", "page", "limit"] },
+				get_audio: { description: "Get audio file URLs for a paragraph", params: ["paragraph_ref"] },
+			},
+		},
+		usage: {
+			config: {
+				mcpServers: {
+					"urantia-papers": {
+						url: "https://api.urantia.dev/mcp",
+					},
+				},
+			},
+			compatible_with: ["Claude Desktop", "Claude Code", "Cursor", "Windsurf"],
+		},
+	});
+});
+
+// POST/DELETE — MCP Streamable HTTP transport
+mcpRoute.post("/", async (c) => {
+	const server = createMcpServer();
+	const transport = new StreamableHTTPTransport({ sessionIdGenerator: undefined });
+	await server.connect(transport);
+	return transport.handleRequest(c);
+});
+
+mcpRoute.delete("/", async (c) => {
 	const server = createMcpServer();
 	const transport = new StreamableHTTPTransport({ sessionIdGenerator: undefined });
 	await server.connect(transport);
