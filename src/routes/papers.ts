@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { eq, sql } from "drizzle-orm";
-import { closeDb, getDb } from "../db/client.ts";
+import { getDb } from "../db/client.ts";
 import { papers, paragraphs, sections } from "../db/schema.ts";
 import { enrichWithEntities, wantsEntities } from "../lib/entities.ts";
 import {
@@ -35,7 +35,7 @@ const listPapersRoute = createRoute({
 });
 
 papersRoute.openapi(listPapersRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const allPapers = await db
 		.select({
 			id: papers.id,
@@ -47,7 +47,7 @@ papersRoute.openapi(listPapersRoute, async (c) => {
 		.from(papers)
 		.orderBy(papers.sortId);
 
-	closeDb(c, close);
+
 	return c.json({ data: allPapers }, 200);
 });
 
@@ -81,7 +81,7 @@ const getPaperRoute = createRoute({
 });
 
 papersRoute.openapi(getPaperRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const { id } = c.req.valid("param");
 	const { include } = c.req.valid("query");
 
@@ -98,7 +98,7 @@ papersRoute.openapi(getPaperRoute, async (c) => {
 		.limit(1);
 
 	if (paper.length === 0) {
-		closeDb(c, close);
+	
 		return c.json({ error: `Paper ${id} not found` }, 404);
 	}
 
@@ -130,7 +130,7 @@ papersRoute.openapi(getPaperRoute, async (c) => {
 		? await enrichWithEntities(db, paperParagraphs)
 		: paperParagraphs;
 
-	closeDb(c, close);
+
 	return c.json(
 		{
 			data: {
@@ -170,13 +170,13 @@ const getPaperSectionsRoute = createRoute({
 });
 
 papersRoute.openapi(getPaperSectionsRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const { id } = c.req.valid("param");
 
 	const paper = await db.select().from(papers).where(eq(papers.id, id)).limit(1);
 
 	if (paper.length === 0) {
-		closeDb(c, close);
+	
 		return c.json({ error: `Paper ${id} not found` }, 404);
 	}
 
@@ -186,6 +186,6 @@ papersRoute.openapi(getPaperSectionsRoute, async (c) => {
 		.where(eq(sections.paperId, id))
 		.orderBy(sections.sortId);
 
-	closeDb(c, close);
+
 	return c.json({ data: paperSections }, 200);
 });

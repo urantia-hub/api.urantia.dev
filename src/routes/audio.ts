@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
-import { closeDb, getDb } from "../db/client.ts";
+import { getDb } from "../db/client.ts";
 import { paragraphs } from "../db/schema.ts";
 import { detectRefFormat } from "../types/node.ts";
 import { AudioParam, AudioResponse, ErrorResponse } from "../validators/schemas.ts";
@@ -35,7 +35,7 @@ const getAudioRoute = createRoute({
 });
 
 audioRoute.openapi(getAudioRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const { paragraphId } = c.req.valid("param");
 	const format = detectRefFormat(paragraphId);
 
@@ -49,7 +49,7 @@ audioRoute.openapi(getAudioRoute, async (c) => {
 					: null;
 
 	if (!col) {
-		closeDb(c, close);
+	
 		return c.json({ error: `Invalid paragraph reference: "${paragraphId}"` }, 404);
 	}
 
@@ -62,7 +62,7 @@ audioRoute.openapi(getAudioRoute, async (c) => {
 		.where(eq(col, paragraphId))
 		.limit(1);
 
-	closeDb(c, close);
+
 
 	if (!result || result.length === 0) {
 		return c.json({ error: `Paragraph "${paragraphId}" not found` }, 404);

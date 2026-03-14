@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
-import { closeDb, getDb } from "../db/client.ts";
+import { getDb } from "../db/client.ts";
 import { papers, parts } from "../db/schema.ts";
 import { ErrorResponse, TocResponse } from "../validators/schemas.ts";
 
@@ -27,7 +27,7 @@ const getTocRoute = createRoute({
 });
 
 tocRoute.openapi(getTocRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 
 	const allParts = await db
 		.select()
@@ -52,6 +52,5 @@ tocRoute.openapi(getTocRoute, async (c) => {
 			})),
 	}));
 
-	closeDb(c, close);
 	return c.json({ data: { parts: tocParts } }, 200);
 });

@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { and, eq, gt, ilike, lt, sql } from "drizzle-orm";
 import OpenAI from "openai";
-import { getDb, closeDb } from "../db/client.ts";
+import { getDb } from "../db/client.ts";
 import { entities, papers, paragraphs, paragraphEntities, parts, sections } from "../db/schema.ts";
 import { detectRefFormat } from "../types/node.ts";
 import { enrichWithEntities, wantsEntities } from "../lib/entities.ts";
@@ -74,8 +74,7 @@ function createMcpServer() {
 		"Get the full table of contents of the Urantia Book. Returns all 4 parts and 197 papers with their titles. This is the best starting point to understand the book structure.",
 		{},
 		async () => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const allParts = await db.select().from(parts).orderBy(parts.sortId);
 				const allPapers = await db.select().from(papers).orderBy(papers.sortId);
 				const tocParts = allParts.map((part) => ({
@@ -87,9 +86,6 @@ function createMcpServer() {
 						.map((p) => ({ id: p.id, title: p.title, labels: p.labels })),
 				}));
 				return { content: [{ type: "text" as const, text: JSON.stringify({ parts: tocParts }) }] };
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -99,16 +95,12 @@ function createMcpServer() {
 		"List all 197 papers in the Urantia Book with their metadata (id, title, partId, labels). Use get_table_of_contents for a hierarchical view instead.",
 		{},
 		async () => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const allPapers = await db
 					.select({ id: papers.id, partId: papers.partId, title: papers.title, sortId: papers.sortId, labels: papers.labels })
 					.from(papers)
 					.orderBy(papers.sortId);
 				return { content: [{ type: "text" as const, text: JSON.stringify(allPapers) }] };
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -121,8 +113,7 @@ function createMcpServer() {
 			include_entities: z.boolean().default(false).describe("Include entity mentions in each paragraph"),
 		},
 		async ({ paper_id, include_entities }) => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const paper = await db
 					.select({ id: papers.id, partId: papers.partId, title: papers.title, sortId: papers.sortId, labels: papers.labels })
 					.from(papers)
@@ -144,9 +135,6 @@ function createMcpServer() {
 					: paperParagraphs;
 
 				return { content: [{ type: "text" as const, text: JSON.stringify({ paper: paper[0]!, paragraphs: enrichedParagraphs }) }] };
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -158,8 +146,7 @@ function createMcpServer() {
 			paper_id: z.string().describe("Paper ID (0-196). Example: '1'"),
 		},
 		async ({ paper_id }) => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const paper = await db.select().from(papers).where(eq(papers.id, paper_id)).limit(1);
 				if (paper.length === 0) {
 					return { content: [{ type: "text" as const, text: JSON.stringify({ error: `Paper ${paper_id} not found` }) }], isError: true };
@@ -172,9 +159,6 @@ function createMcpServer() {
 					.orderBy(sections.sortId);
 
 				return { content: [{ type: "text" as const, text: JSON.stringify(paperSections) }] };
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -186,8 +170,7 @@ function createMcpServer() {
 			include_entities: z.boolean().default(false).describe("Include entity mentions"),
 		},
 		async ({ include_entities }) => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const result = await db.select(paragraphFields).from(paragraphs).orderBy(sql`RANDOM()`).limit(1);
 				if (result.length === 0) {
 					return { content: [{ type: "text" as const, text: JSON.stringify({ error: "No paragraphs found" }) }], isError: true };
@@ -196,9 +179,6 @@ function createMcpServer() {
 					? (await enrichWithEntities(db, result))[0]!
 					: result[0]!;
 				return { content: [{ type: "text" as const, text: JSON.stringify(data) }] };
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -211,8 +191,7 @@ function createMcpServer() {
 			include_entities: z.boolean().default(false).describe("Include entity mentions"),
 		},
 		async ({ ref, include_entities }) => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const format = detectRefFormat(ref);
 				if (format === "unknown") {
 					return { content: [{ type: "text" as const, text: JSON.stringify({ error: `Invalid reference format: "${ref}". Expected globalId (1:2.0.1), standardReferenceId (2:0.1), or paperSectionParagraphId (2.0.1)` }) }], isError: true };
@@ -227,9 +206,6 @@ function createMcpServer() {
 					? (await enrichWithEntities(db, result))[0]!
 					: result[0]!;
 				return { content: [{ type: "text" as const, text: JSON.stringify(data) }] };
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -243,8 +219,7 @@ function createMcpServer() {
 			include_entities: z.boolean().default(false).describe("Include entity mentions"),
 		},
 		async ({ ref, window: windowSize, include_entities }) => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const format = detectRefFormat(ref);
 				if (format === "unknown") {
 					return { content: [{ type: "text" as const, text: JSON.stringify({ error: `Invalid reference format: "${ref}"` }) }], isError: true };
@@ -293,9 +268,6 @@ function createMcpServer() {
 						text: JSON.stringify({ target: targetParagraph, before: before.reverse(), after }),
 					}],
 				};
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -313,8 +285,7 @@ function createMcpServer() {
 			include_entities: z.boolean().default(false).describe("Include entity mentions"),
 		},
 		async ({ q, type, paper_id, part_id, page, limit, include_entities }) => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const sanitized = q.replace(/[^\w\s]/g, " ").trim();
 				if (!sanitized) {
 					return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Search query cannot be empty" }) }], isError: true };
@@ -355,9 +326,6 @@ function createMcpServer() {
 						}),
 					}],
 				};
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -374,8 +342,7 @@ function createMcpServer() {
 			include_entities: z.boolean().default(false).describe("Include entity mentions"),
 		},
 		async ({ q, paper_id, part_id, page, limit, include_entities }) => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 				const embeddingResponse = await openai.embeddings.create({
 					model: "text-embedding-3-small",
@@ -420,9 +387,6 @@ function createMcpServer() {
 						}),
 					}],
 				};
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -437,8 +401,7 @@ function createMcpServer() {
 			limit: z.number().int().min(1).max(100).default(20).describe("Results per page (1-100)"),
 		},
 		async ({ type, q, page, limit }) => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const offset = page * limit;
 				const conditions = [];
 				if (type) conditions.push(eq(entities.type, type));
@@ -474,9 +437,6 @@ function createMcpServer() {
 						text: JSON.stringify({ data: results, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } }),
 					}],
 				};
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -488,8 +448,7 @@ function createMcpServer() {
 			entity_id: z.string().describe('Entity slug ID. Example: "god-the-father"'),
 		},
 		async ({ entity_id }) => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const result = await db
 					.select({
 						id: entities.id,
@@ -509,9 +468,6 @@ function createMcpServer() {
 				}
 
 				return { content: [{ type: "text" as const, text: JSON.stringify(result[0]!) }] };
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -525,8 +481,7 @@ function createMcpServer() {
 			limit: z.number().int().min(1).max(100).default(20).describe("Results per page (1-100)"),
 		},
 		async ({ entity_id, page, limit }) => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const entity = await db.select({ id: entities.id }).from(entities).where(eq(entities.id, entity_id)).limit(1);
 				if (entity.length === 0) {
 					return { content: [{ type: "text" as const, text: JSON.stringify({ error: `Entity "${entity_id}" not found` }) }], isError: true };
@@ -554,9 +509,6 @@ function createMcpServer() {
 						text: JSON.stringify({ data: results, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } }),
 					}],
 				};
-			} finally {
-				close();
-			}
 		},
 	);
 
@@ -568,8 +520,7 @@ function createMcpServer() {
 			paragraph_ref: z.string().describe('Paragraph reference. Example: "2:0.1"'),
 		},
 		async ({ paragraph_ref }) => {
-			const { db, close } = getDb();
-			try {
+			const { db } = getDb();
 				const format = detectRefFormat(paragraph_ref);
 				const col =
 					format === "globalId" ? paragraphs.globalId
@@ -593,14 +544,16 @@ function createMcpServer() {
 
 				const row = result[0]!;
 				return { content: [{ type: "text" as const, text: JSON.stringify({ paragraphId: row.globalId, audio: row.audio ?? null }) }] };
-			} finally {
-				close();
-			}
 		},
 	);
 
 	return server;
 }
+
+// OAuth/OIDC metadata discovery — return JSON 404 so MCP clients know no auth is needed
+mcpRoute.get("/.well-known/*", (c) =>
+	c.json({ error: "This server requires no authentication." }, 404),
+);
 
 // Discovery response for browser/GET requests without SSE accept header
 mcpRoute.get("/", async (c) => {

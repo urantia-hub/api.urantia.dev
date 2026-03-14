@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { and, eq, gt, lt, sql } from "drizzle-orm";
-import { closeDb, getDb } from "../db/client.ts";
+import { getDb } from "../db/client.ts";
 import { paragraphs } from "../db/schema.ts";
 import { enrichWithEntities, wantsEntities } from "../lib/entities.ts";
 import { detectRefFormat } from "../types/node.ts";
@@ -89,12 +89,12 @@ const getRandomRoute = createRoute({
 });
 
 paragraphsRoute.openapi(getRandomRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const { include } = c.req.valid("query");
 	const result = await db.select(paragraphFields).from(paragraphs).orderBy(sql`RANDOM()`).limit(1);
 
 	if (result.length === 0) {
-		closeDb(c, close);
+	
 		return c.json({ error: "No paragraphs found" }, 500);
 	}
 
@@ -102,7 +102,7 @@ paragraphsRoute.openapi(getRandomRoute, async (c) => {
 		? (await enrichWithEntities(db, result))[0]!
 		: result[0]!;
 
-	closeDb(c, close);
+
 	return c.json({ data }, 200);
 });
 
@@ -144,13 +144,13 @@ The format is auto-detected from the reference string.\n\nUse \`?include=entitie
 });
 
 paragraphsRoute.openapi(getParagraphRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const { ref } = c.req.valid("param");
 	const { include } = c.req.valid("query");
 	const format = detectRefFormat(ref);
 
 	if (format === "unknown") {
-		closeDb(c, close);
+	
 		return c.json(
 			{
 				error: `Invalid reference format: "${ref}". Expected globalId (1:2.0.1), standardReferenceId (2:0.1), or paperSectionParagraphId (2.0.1)`,
@@ -162,7 +162,7 @@ paragraphsRoute.openapi(getParagraphRoute, async (c) => {
 	const result = await findParagraphByRef(db, ref);
 
 	if (result.length === 0) {
-		closeDb(c, close);
+	
 		return c.json({ error: `Paragraph "${ref}" not found` }, 404);
 	}
 
@@ -170,7 +170,7 @@ paragraphsRoute.openapi(getParagraphRoute, async (c) => {
 		? (await enrichWithEntities(db, result))[0]!
 		: result[0]!;
 
-	closeDb(c, close);
+
 	return c.json({ data }, 200);
 });
 
@@ -211,13 +211,13 @@ The \`window\` query parameter controls how many paragraphs before/after to incl
 });
 
 paragraphsRoute.openapi(getParagraphContextRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const { ref } = c.req.valid("param");
 	const { window: windowSize, include } = c.req.valid("query");
 	const format = detectRefFormat(ref);
 
 	if (format === "unknown") {
-		closeDb(c, close);
+	
 		return c.json(
 			{
 				error: `Invalid reference format: "${ref}". Expected globalId (1:2.0.1), standardReferenceId (2:0.1), or paperSectionParagraphId (2.0.1)`,
@@ -229,7 +229,7 @@ paragraphsRoute.openapi(getParagraphContextRoute, async (c) => {
 	const target = await findParagraphByRef(db, ref);
 
 	if (target.length === 0) {
-		closeDb(c, close);
+	
 		return c.json({ error: `Paragraph "${ref}" not found` }, 404);
 	}
 
@@ -266,7 +266,7 @@ paragraphsRoute.openapi(getParagraphContextRoute, async (c) => {
 		const enriched = await enrichWithEntities(db, allParagraphs);
 		const enrichedMap = new Map(enriched.map((p) => [p.id, p]));
 
-		closeDb(c, close);
+	
 		return c.json(
 			{
 				data: {
@@ -279,7 +279,7 @@ paragraphsRoute.openapi(getParagraphContextRoute, async (c) => {
 		);
 	}
 
-	closeDb(c, close);
+
 	return c.json(
 		{
 			data: {

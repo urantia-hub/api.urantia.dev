@@ -2,11 +2,12 @@ import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
-import { closeDb, getDb } from "./db/client.ts";
+import { getDb } from "./db/client.ts";
 import { cacheControl } from "./middleware/cache.ts";
 import { corsMiddleware } from "./middleware/cors.ts";
 import { loggerMiddleware } from "./middleware/logger.ts";
 import { rateLimiter } from "./middleware/rate-limit.ts";
+import { scannerBlock } from "./middleware/security.ts";
 import { audioRoute } from "./routes/audio.ts";
 import { entitiesRoute } from "./routes/entities.ts";
 import { mcpRoute } from "./routes/mcp.ts";
@@ -46,6 +47,7 @@ app.onError((err, c) => {
 });
 
 // Global middleware
+app.use("*", scannerBlock);
 app.use("*", corsMiddleware);
 app.use("*", loggerMiddleware);
 app.use("*", rateLimiter({ windowMs: 60_000, max: 100 }));
@@ -65,9 +67,8 @@ app.get("/", (c) =>
 app.get("/health", async (c) => {
 	const timestamp = new Date().toISOString();
 	try {
-		const { db, close } = getDb();
+		const { db } = getDb();
 		await db.execute(sql`SELECT 1`);
-		closeDb(c, close);
 		c.header("Cache-Control", "no-store");
 		return c.json({ status: "healthy", db: "connected", timestamp });
 	} catch (err) {
@@ -116,6 +117,12 @@ app.get("/sitemap.xml", (c) => {
 </urlset>`;
 	return c.text(sitemap, 200, { "Content-Type": "application/xml" });
 });
+
+// OAuth/OIDC metadata discovery — return JSON 404 so MCP clients (Claude Code) know no auth is needed
+// Covers all discovery paths: root, path-aware (RFC 8414), MCP-scoped, and protected resource (RFC 9728)
+app.get("/.well-known/*", (c) =>
+	c.json({ error: "This server requires no authentication." }, 404),
+);
 
 // MCP server (mounted before OpenAPI doc generation so it doesn't pollute the REST spec)
 app.route("/mcp", mcpRoute);

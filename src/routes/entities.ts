@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { and, eq, ilike, sql } from "drizzle-orm";
-import { closeDb, getDb } from "../db/client.ts";
+import { getDb } from "../db/client.ts";
 import { entities, paragraphEntities, paragraphs } from "../db/schema.ts";
 import { paragraphFields } from "./paragraphs.ts";
 import {
@@ -40,7 +40,7 @@ const listEntitiesRoute = createRoute({
 });
 
 entitiesRoute.openapi(listEntitiesRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const { page, limit, type, q } = c.req.valid("query");
 	const offset = page * limit;
 
@@ -81,7 +81,7 @@ entitiesRoute.openapi(listEntitiesRoute, async (c) => {
 		.limit(limit)
 		.offset(offset);
 
-	closeDb(c, close);
+
 
 	return c.json(
 		{
@@ -125,7 +125,7 @@ const getEntityRoute = createRoute({
 });
 
 entitiesRoute.openapi(getEntityRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const { id } = c.req.valid("param");
 
 	const result = await db
@@ -142,7 +142,7 @@ entitiesRoute.openapi(getEntityRoute, async (c) => {
 		.where(eq(entities.id, id))
 		.limit(1);
 
-	closeDb(c, close);
+
 
 	if (result.length === 0) {
 		return c.json({ error: `Entity "${id}" not found` }, 404);
@@ -181,7 +181,7 @@ const getEntityParagraphsRoute = createRoute({
 });
 
 entitiesRoute.openapi(getEntityParagraphsRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const { id } = c.req.valid("param");
 	const { page, limit } = c.req.valid("query");
 	const offset = page * limit;
@@ -194,7 +194,7 @@ entitiesRoute.openapi(getEntityParagraphsRoute, async (c) => {
 		.limit(1);
 
 	if (entity.length === 0) {
-		closeDb(c, close);
+	
 		return c.json({ error: `Entity "${id}" not found` }, 404);
 	}
 
@@ -216,7 +216,7 @@ entitiesRoute.openapi(getEntityParagraphsRoute, async (c) => {
 		.limit(limit)
 		.offset(offset);
 
-	closeDb(c, close);
+
 
 	return c.json(
 		{

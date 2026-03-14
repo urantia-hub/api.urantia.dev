@@ -1,7 +1,7 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { and, eq, sql } from "drizzle-orm";
 import OpenAI from "openai";
-import { closeDb, getDb } from "../db/client.ts";
+import { getDb } from "../db/client.ts";
 import { paragraphs } from "../db/schema.ts";
 import { enrichWithEntities, wantsEntities } from "../lib/entities.ts";
 import {
@@ -66,14 +66,14 @@ Results are ranked by relevance. Optional filters: paperId, partId.`,
 });
 
 searchRoute.openapi(searchParagraphsRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const body = c.req.valid("json");
 	const { q, page, limit, paperId, partId, type, include } = body;
 
 	const sanitized = q.replace(/[^\w\s]/g, " ").trim();
 
 	if (!sanitized) {
-		closeDb(c, close);
+	
 		return c.json({ error: "Search query cannot be empty" }, 400);
 	}
 
@@ -143,7 +143,7 @@ searchRoute.openapi(searchParagraphsRoute, async (c) => {
 		? await enrichWithEntities(db, results)
 		: results;
 
-	closeDb(c, close);
+
 
 	return c.json(
 		{
@@ -192,7 +192,7 @@ Optional filters: paperId, partId.`,
 });
 
 searchRoute.openapi(semanticSearchRoute, async (c) => {
-	const { db, close } = getDb();
+	const { db } = getDb();
 	const { q, page, limit, paperId, partId, include } = c.req.valid("json");
 	const offset = page * limit;
 
@@ -203,7 +203,6 @@ searchRoute.openapi(semanticSearchRoute, async (c) => {
 	});
 	const queryVector = embeddingResponse.data[0]?.embedding;
 	if (!queryVector) {
-		await close();
 		return c.json({ error: "Failed to generate embedding" }, 500);
 	}
 	const vectorStr = `[${queryVector.join(",")}]`;
@@ -268,7 +267,7 @@ searchRoute.openapi(semanticSearchRoute, async (c) => {
 		? await enrichWithEntities(db, results)
 		: results;
 
-	closeDb(c, close);
+
 
 	return c.json(
 		{
