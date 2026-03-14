@@ -8,31 +8,15 @@ if (!connectionString) {
 	throw new Error("DATABASE_URL environment variable is required");
 }
 
-// Lazy singleton — reused across requests within the same Workers isolate.
-// Automatically recreated if the connection goes stale (e.g. after isolate freeze).
-let client: ReturnType<typeof postgres> | null = null;
-let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
-
-function createClient() {
-	client = postgres(connectionString!, {
+// Per-request connections — postgres.js cannot reliably reuse connections on
+// Cloudflare Workers. idle_timeout auto-closes the connection after 2s of idle,
+// preventing leaks without explicit close() calls.
+export function getDb() {
+	const client = postgres(connectionString!, {
 		prepare: false,
 		max: 1,
-		idle_timeout: 20,
+		idle_timeout: 2,
 		fetch_types: false,
 	});
-	db = drizzle(client, { schema });
-}
-
-export function getDb() {
-	if (!db) createClient();
-	return { db: db! };
-}
-
-/** Discard the current connection so the next getDb() creates a fresh one. */
-export function resetDb() {
-	if (client) {
-		client.end().catch(() => {});
-	}
-	client = null;
-	db = null;
+	return { db: drizzle(client, { schema }) };
 }
