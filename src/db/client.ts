@@ -12,7 +12,7 @@ if (!connectionString) {
 // On Workers, isolates are ephemeral; the runtime cleans up when the isolate dies.
 const client = postgres(connectionString, {
 	prepare: false,
-	max: 1,
+	max: 5,
 	idle_timeout: 20,
 	fetch_types: false,
 });
