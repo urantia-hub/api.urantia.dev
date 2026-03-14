@@ -2,7 +2,7 @@ import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
-import { getDb } from "./db/client.ts";
+import { getDb, resetDb } from "./db/client.ts";
 import { cacheControl } from "./middleware/cache.ts";
 import { corsMiddleware } from "./middleware/cors.ts";
 import { loggerMiddleware } from "./middleware/logger.ts";
@@ -43,6 +43,7 @@ app.onError((err, c) => {
 		console.error(`[ERROR] ${c.req.method} ${c.req.path}:`, err.message);
 	}
 
+	resetDb();
 	return c.json({ error: "Internal server error" }, 500);
 });
 
@@ -72,6 +73,7 @@ app.get("/health", async (c) => {
 		c.header("Cache-Control", "no-store");
 		return c.json({ status: "healthy", db: "connected", timestamp });
 	} catch (err) {
+		resetDb();
 		c.header("Cache-Control", "no-store");
 		return c.json(
 			{
